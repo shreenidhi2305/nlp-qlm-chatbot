@@ -60,7 +60,8 @@
     </div>
 
     <script>
-        const API_URL = "https://reiko-pseudolegislative-heteronymously.ngrok-free.dev/generate";
+        // 🔁 Make sure this matches your CURRENT ngrok URL
+        const API_URL = "https://reiko-pseudolegislative-heteronymously.ngrok-free.dev/generate_stream";
 
         async function sendMessage() {
             const input = document.getElementById("prompt");
@@ -69,33 +70,55 @@
             const userMessage = input.value;
             if (!userMessage) return;
 
-            // Display user message
+            // ✅ Display user message
             messages.innerHTML += `<div class="user"><b>You:</b> ${userMessage}</div>`;
             input.value = "";
 
-            // Show loading
-            messages.innerHTML += `<div class="bot" id="loading"><b>Bot:</b> Generating...</div>`;
+            // ✅ Create bot placeholder (we will stream into this)
+            messages.innerHTML += `<div class="bot" id="loading"><b>Bot:</b> </div>`;
             messages.scrollTop = messages.scrollHeight;
 
-            const response = await fetch(API_URL, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    prompt: userMessage,
-                    max_tokens: 100
-                })
-            });
+            try {
 
-            const data = await response.json();
+                const response = await fetch(API_URL, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    // ❗ IMPORTANT: streaming endpoint only expects "prompt"
+                    body: JSON.stringify({
+                        prompt: userMessage
+                    })
+                });
 
-            // Remove loading
-            document.getElementById("loading").remove();
+                // 🔥 This is the key difference for streaming
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
 
-            // Show bot response
-            messages.innerHTML += `<div class="bot"><b>Bot:</b> ${data.response}</div>`;
-            messages.scrollTop = messages.scrollHeight;
+                let botMessage = "";
+                const loadingDiv = document.getElementById("loading");
+
+                // 🔁 Read chunks as they arrive
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    // Decode streamed chunk
+                    botMessage += decoder.decode(value);
+
+                    // Update UI live
+                    loadingDiv.innerHTML = `<b>Bot:</b> ${botMessage}`;
+                    messages.scrollTop = messages.scrollHeight;
+                }
+
+                // Remove the temporary ID once done
+                loadingDiv.removeAttribute("id");
+
+            } catch (error) {
+                console.error("Error:", error);
+                document.getElementById("loading").innerHTML =
+                    "<b>Bot:</b> Error generating response.";
+            }
         }
     </script>
 
